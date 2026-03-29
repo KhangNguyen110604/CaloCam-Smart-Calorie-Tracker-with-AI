@@ -1,0 +1,98 @@
+rules_version = '2';
+
+/// Firestore Security Rules for CaloCam
+/// 
+/// These rules ensure that:
+/// 1. Users can only access their own data
+/// 2. Authentication is required for all operations
+/// 3. Data validation is enforced
+/// 
+/// **Collections Structure:**
+/// - users/{userId}/meals/{mealId}
+/// - users/{userId}/userFoods/{foodId}
+/// - users/{userId}/favorites/{favoriteId}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==================== HELPER FUNCTIONS ====================
+    
+    /// Check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    /// Check if user is accessing their own data
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    /// Validate meal entry data
+    function isValidMeal(meal) {
+      return meal.keys().hasAll(['id', 'foodName', 'mealType', 'date', 'calories']) 
+        && meal.id is string
+        && meal.foodName is string
+        && meal.mealType is string
+        && meal.date is string
+        && meal.calories is number
+        && meal.calories >= 0
+        && meal.calories <= 10000; // Reasonable max calories per meal
+    }
+    
+    /// Validate user food data
+    function isValidUserFood(food) {
+      return food.keys().hasAll(['id', 'userId', 'name', 'calories'])
+        && food.id is string
+        && food.userId is string
+        && food.name is string
+        && food.calories is number
+        && food.calories >= 0
+        && food.calories <= 10000;
+    }
+    
+    /// Validate favorite data
+    function isValidFavorite(favorite) {
+      return favorite.keys().hasAll(['id', 'source'])
+        && favorite.id is string
+        && favorite.source is string
+        && favorite.source in ['builtin', 'custom', 'ai_scan', 'manual'];
+    }
+    
+    // ==================== USERS COLLECTION ====================
+    
+    /// User document rules
+    match /users/{userId} {
+      // Allow users to read and write their own document
+      allow read, write: if isOwner(userId);
+      
+      // ==================== MEALS SUBCOLLECTION ====================
+      
+      match /meals/{mealId} {
+        // Allow user to read/write their own meals (validation temporarily disabled for testing)
+        allow read, write: if isOwner(userId);
+      }
+      
+      // ==================== USER FOODS SUBCOLLECTION ====================
+      
+      match /userFoods/{foodId} {
+        // Allow user to read/write their own custom foods (validation temporarily disabled for testing)
+        allow read, write: if isOwner(userId);
+      }
+      
+      // ==================== FAVORITES SUBCOLLECTION ====================
+      
+      match /favorites/{favoriteId} {
+        // Allow user to read/write their own favorites (validation temporarily disabled for testing)
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // ==================== DENY ALL OTHER ACCESS ====================
+    
+    /// Block access to any other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

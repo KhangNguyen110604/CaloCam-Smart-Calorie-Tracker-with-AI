@@ -1,0 +1,32 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "calocam-a385d",
+          "appId": "1:653474732813:android:f5120445319f314972ae44",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "calocam-a385d",
+          "configurations": {
+            "android": "1:653474732813:android:f5120445319f314972ae44",
+            "ios": "1:653474732813:ios:13ca856cd715f74672ae44",
+            "macos": "1:653474732813:ios:13ca856cd715f74672ae44",
+            "web": "1:653474732813:web:58595b5885a20a7072ae44",
+            "windows": "1:653474732813:web:20649a82e54ec82672ae44"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

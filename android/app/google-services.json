@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "653474732813",
+    "project_id": "calocam-a385d",
+    "storage_bucket": "calocam-a385d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:653474732813:android:f5120445319f314972ae44",
+        "android_client_info": {
+          "package_name": "com.example.calocount_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "653474732813-41oomijr85cv7ckb4bqad25hl9rdcsrn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.calocount_app",
+            "certificate_hash": "11695441a8148d8733561267018284af5a30c8be"
+          }
+        },
+        {
+          "client_id": "653474732813-gd977v8els113lj7qkend1f01v5ssqtg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDCK2rutTBSRZ5Q_kC1vyg5-lsZATZHOo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "653474732813-gd977v8els113lj7qkend1f01v5ssqtg.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "653474732813-prqn5khaadbk3gd4hqogajce8jnqbfaf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.calocountApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

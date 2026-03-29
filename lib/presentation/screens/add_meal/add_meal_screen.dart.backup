@@ -1,0 +1,576 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_dimensions.dart';
+import '../../../core/constants/app_text_styles.dart';
+import '../../../data/models/food_model.dart';
+import '../../../data/datasources/local/database_helper.dart';
+import '../../providers/meal_provider.dart';
+import 'package:uuid/uuid.dart';
+
+class AddMealScreen extends StatefulWidget {
+  final String mealType;
+
+  const AddMealScreen({
+    super.key,
+    required this.mealType,
+  });
+
+  @override
+  State<AddMealScreen> createState() => _AddMealScreenState();
+}
+
+class _AddMealScreenState extends State<AddMealScreen> {
+  final _searchController = TextEditingController();
+  final _servingsController = TextEditingController(text: '1.0');
+  List<FoodModel> _allFoods = [];
+  List<FoodModel> _filteredFoods = [];
+  FoodModel? _selectedFood;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFoods();
+    _searchController.addListener(_filterFoods);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _servingsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFoods() async {
+    setState(() => _isLoading = true);
+    try {
+      // Ensure foods are seeded first
+      await DatabaseHelper.instance.ensureFoodsSeeded();
+      
+      final foodMaps = await DatabaseHelper.instance.getAllFoods();
+      final foods = foodMaps.map((map) => FoodModel.fromMap(map)).toList();
+      setState(() {
+        _allFoods = foods;
+        _filteredFoods = foods;
+        _isLoading = false;
+      });
+      
+      // Debug: print food count
+      print('Loaded ${foods.length} foods');
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải danh sách món ăn: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _filterFoods() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredFoods = _allFoods;
+      } else {
+        _filteredFoods = _allFoods
+            .where((food) =>
+                food.name.toLowerCase().contains(query) ||
+                food.nameEn.toLowerCase().contains(query))
+            .toList();
+      }
+    });
+  }
+
+  void _selectFood(FoodModel food) {
+    setState(() {
+      _selectedFood = food;
+    });
+  }
+
+  Future<void> _addMeal() async {
+    if (_selectedFood == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn món ăn'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    final servings = double.tryParse(_servingsController.text) ?? 1.0;
+    if (servings <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Số phần ăn phải lớn hơn 0'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final mealEntry = {
+        'id': const Uuid().v4(),
+        'user_id': 'user_1', // TODO: Get from auth
+        'food_id': _selectedFood!.id,
+        'food_name': _selectedFood!.name,
+        'meal_type': widget.mealType.toLowerCase(),
+        'servings': servings,
+        'serving_size': _selectedFood!.servingSize * servings,
+        'calories': _selectedFood!.calories * servings,
+        'protein': _selectedFood!.protein * servings,
+        'carbs': _selectedFood!.carbs * servings,
+        'fat': _selectedFood!.fat * servings,
+        'date': DateTime.now().toIso8601String().split('T')[0],
+        'created_at': DateTime.now().toIso8601String(),
+      };
+
+      await DatabaseHelper.instance.insertMealEntry(mealEntry);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã thêm món ăn thành công'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.pop(context, true); // Return true to trigger reload
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi thêm món ăn: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Color _getMealColor() {
+    switch (widget.mealType.toLowerCase()) {
+      case 'breakfast':
+        return AppColors.breakfast;
+      case 'lunch':
+        return AppColors.lunch;
+      case 'dinner':
+        return AppColors.dinner;
+      case 'snack':
+        return AppColors.snack;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  String _getMealTitle() {
+    switch (widget.mealType.toLowerCase()) {
+      case 'breakfast':
+        return 'Bữa Sáng';
+      case 'lunch':
+        return 'Bữa Trưa';
+      case 'dinner':
+        return 'Bữa Tối';
+      case 'snack':
+        return 'Ăn Vặt';
+      default:
+        return 'Bữa Ăn';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: _getMealColor(),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Thêm món - ${_getMealTitle()}',
+          style: AppTextStyles.titleLarge.copyWith(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _selectedFood != null ? _addMeal : null,
+            child: Text(
+              'XONG',
+              style: AppTextStyles.button.copyWith(
+                color: _selectedFood != null
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search Bar
+          Container(
+            color: _getMealColor(),
+            padding: const EdgeInsets.fromLTRB(
+              AppDimensions.paddingM,
+              AppDimensions.paddingS,
+              AppDimensions.paddingM,
+              AppDimensions.paddingL,
+            ),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Tìm món ăn...',
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+                prefixIcon: const Icon(Icons.search, color: Colors.white),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.white),
+                        onPressed: () {
+                          _searchController.clear();
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.2),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusM),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.paddingM,
+                  vertical: AppDimensions.paddingS,
+                ),
+              ),
+            ),
+          ),
+
+          // Selected Food Info
+          if (_selectedFood != null) _buildSelectedFoodCard(),
+
+          // Food List
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredFoods.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(AppDimensions.paddingM),
+                        itemCount: _filteredFoods.length,
+                        itemBuilder: (context, index) {
+                          final food = _filteredFoods[index];
+                          final isSelected = _selectedFood?.id == food.id;
+                          return _buildFoodCard(food, isSelected);
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedFoodCard() {
+    final servings = double.tryParse(_servingsController.text) ?? 1.0;
+    final totalCalories = _selectedFood!.calories * servings;
+    final totalProtein = _selectedFood!.protein * servings;
+    final totalCarbs = _selectedFood!.carbs * servings;
+    final totalFat = _selectedFood!.fat * servings;
+
+    return Container(
+      margin: const EdgeInsets.all(AppDimensions.paddingM),
+      padding: const EdgeInsets.all(AppDimensions.paddingM),
+      decoration: BoxDecoration(
+        color: _getMealColor().withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusL),
+        border: Border.all(color: _getMealColor(), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _selectedFood!.name,
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 20),
+                onPressed: () {
+                  setState(() {
+                    _selectedFood = null;
+                  });
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.paddingS),
+          
+          // Servings Input
+          Row(
+            children: [
+              Text(
+                'Số phần:',
+                style: AppTextStyles.bodyMedium,
+              ),
+              const SizedBox(width: AppDimensions.paddingS),
+              Expanded(
+                child: TextField(
+                  controller: _servingsController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusS),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppDimensions.paddingS,
+                      vertical: AppDimensions.paddingS,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {}); // Trigger rebuild to update totals
+                  },
+                ),
+              ),
+              const SizedBox(width: AppDimensions.paddingS),
+              Text(
+                '× ${_selectedFood!.servingSize.toStringAsFixed(0)}g',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppDimensions.paddingM),
+          
+          // Nutrition Summary
+          Container(
+            padding: const EdgeInsets.all(AppDimensions.paddingM),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusM),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Calories',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '${totalCalories.toStringAsFixed(0)} kcal',
+                      style: AppTextStyles.titleMedium.copyWith(
+                        color: AppColors.secondary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: AppDimensions.paddingM),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildMacroInfo('Protein', totalProtein, AppColors.macroProtein),
+                    _buildMacroInfo('Carbs', totalCarbs, AppColors.macroCarbs),
+                    _buildMacroInfo('Fat', totalFat, AppColors.macroFat),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacroInfo(String label, double value, Color color) {
+    return Column(
+      children: [
+        Text(
+          '${value.toStringAsFixed(1)}g',
+          style: AppTextStyles.titleMedium.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: AppTextStyles.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFoodCard(FoodModel food, bool isSelected) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppDimensions.paddingS),
+      elevation: isSelected ? AppDimensions.elevationM : AppDimensions.elevationS,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusM),
+        side: isSelected
+            ? BorderSide(color: _getMealColor(), width: 2)
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        onTap: () => _selectFood(food),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusM),
+        child: Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingM),
+          child: Row(
+            children: [
+              // Food Icon
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: _getMealColor().withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusS),
+                ),
+                child: Icon(
+                  Icons.restaurant,
+                  color: _getMealColor(),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: AppDimensions.paddingM),
+              
+              // Food Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      food.name,
+                      style: AppTextStyles.titleSmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${food.servingSize.toStringAsFixed(0)}g • ${food.category}',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _buildSmallMacro('P', food.protein, AppColors.macroProtein),
+                        const SizedBox(width: 4),
+                        _buildSmallMacro('C', food.carbs, AppColors.macroCarbs),
+                        const SizedBox(width: 4),
+                        _buildSmallMacro('F', food.fat, AppColors.macroFat),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Calories
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    food.calories.toStringAsFixed(0),
+                    style: AppTextStyles.titleMedium.copyWith(
+                      color: AppColors.secondary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'kcal',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Selection indicator
+              if (isSelected)
+                const Padding(
+                  padding: EdgeInsets.only(left: AppDimensions.paddingS),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: AppColors.success,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmallMacro(String label, double value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '$label ${value.toStringAsFixed(0)}',
+        style: AppTextStyles.bodySmall.copyWith(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 64,
+            color: AppColors.textHint,
+          ),
+          const SizedBox(height: AppDimensions.paddingM),
+          Text(
+            'Không tìm thấy món ăn',
+            style: AppTextStyles.titleMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppDimensions.paddingS),
+          Text(
+            'Thử tìm kiếm với từ khóa khác',
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textHint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
